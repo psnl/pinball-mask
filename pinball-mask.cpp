@@ -48,16 +48,13 @@ using namespace cv;
 namespace {
 const char* about = "Basic marker detection";
 const char* keys  =
-        "{d        |       | dictionary: DICT_4X4_50=0, DICT_4X4_100=1, DICT_4X4_250=2,"
-        "DICT_4X4_1000=3, DICT_5X5_50=4, DICT_5X5_100=5, DICT_5X5_250=6, DICT_5X5_1000=7, "
-        "DICT_6X6_50=8, DICT_6X6_100=9, DICT_6X6_250=10, DICT_6X6_1000=11, DICT_7X7_50=12,"
-        "DICT_7X7_100=13, DICT_7X7_250=14, DICT_7X7_1000=15, DICT_ARUCO_ORIGINAL = 16}"
         "{v        |       | Input from video file, if ommited, input comes from camera }"
         "{ci       | 0     | Camera id if input doesnt come from video (-v) }"
         "{c        |       | Camera intrinsic parameters. Needed for camera pose }"
         "{l        | 0.1   | Marker side lenght (in meters). Needed for correct scale in camera pose }"
         "{dp       |       | File of marker detector parameters }"
-        "{r        |       | show rejected candidates too }";
+        "{r        |       | show rejected candidates too }"
+		"{i        |       | Input mask }";
 }
 
 /**
@@ -102,15 +99,6 @@ static bool readDetectorParameters(string filename, Ptr<aruco::DetectorParameter
     return true;
 }
 
-int angle(cv::Mat& image, cv::Point p0, cv::Point p1)
-{
-	  //float angleValue = angle2(cv::Point(p0.first, p0.second), cv::Point(p1.first, p1.second), cv::Point(p2.first, p2.second));
-	  //angleValue = angleValue *180/M_PI;
-	  //int angleValue = int(std::atan2((p0.second-p1.second),(p0.first-p1.first))*180/M_PI);
-	  float angleValue = atan2((p1.y-p0.y), (p1.x-p0.x)) * 180 / M_PI;
-	  //printf("Angle %d\n", (int)std::round(angleValue));
-	  return (int)std::round(angleValue);
-}
 
 Point2f GetCenterId( int id, vector< int > &ids, vector< vector< Point2f > > &corners)
 {
@@ -182,49 +170,30 @@ void overlayImage(const cv::Mat &background, const cv::Mat &foreground,
   }
 }
 
-
-void loadAndRotateMask(cv::Point p500, cv::Point p501, cv::Point p502, int angle, cv::Mat& imageMaskRotated, double& offset)
-{
-	  cv::Mat imageMaskLoad = cv::imread("/home/patric/phact.png", CV_LOAD_IMAGE_UNCHANGED);
-	  double width = cv::norm(p500-p502);
-	  double height = cv::norm(p500-p501);
-	  double diagonal = cv::norm(p501-p502);
-	  offset = diagonal/2;
-
-	  // Resize image so scale matches
-	  cv::Size size(cv::norm(p500-p502), cv::norm(p500-p501));//the dst image size,e.g.100x100
-	  cv::Mat imageMaskResized;//dst image
-	  resize(imageMaskLoad,imageMaskResized,size);//resize image
-
-	  // Create image to contain rotation
-	  cv::Mat imageMaskEmptyContainer(cv::norm(p501-p502), cv::norm(p501-p502), CV_8UC4, cv::Scalar(0,0,0,0));
-
-
-	  // Copy resized image to middle of rotation image
-	  cv::Mat imageMask;
-	  cv::Point2f pointMaskOffset = cv::Point2f((diagonal-width)/2, (diagonal-height)/2);
-	  overlayImage(imageMaskEmptyContainer, imageMaskResized, imageMask, pointMaskOffset);
-
-	  cv::Point2f pc(imageMask.cols/2., imageMask.rows/2.);
-      cv::Mat r = cv::getRotationMatrix2D(pc, angle, 1.0);
-	  cv::warpAffine(imageMask, imageMaskRotated, r, imageMask.size()); // what size I should use?
-}
-
 /**
  */
 int main(int argc, char *argv[]) {
     CommandLineParser parser(argc, argv, keys);
     parser.about(about);
 
-    if(argc < 2) {
+    if(argc < 1) {
         parser.printMessage();
         return 0;
     }
 
-    int dictionaryId = parser.get<int>("d");
     bool showRejected = parser.has("r");
     bool estimatePose = parser.has("c");
     float markerLength = parser.get<float>("l");
+
+    String inputMask;
+    if(parser.has("i")) {
+    	inputMask = parser.get<String>("i");
+    }
+    else
+    {
+    	inputMask = "./phact.png1";
+    }
+
 
     Ptr<aruco::DetectorParameters> detectorParams = aruco::DetectorParameters::create();
     if(parser.has("dp")) {
@@ -248,8 +217,9 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    // Dictionay id = 0
     Ptr<aruco::Dictionary> dictionary =
-        aruco::getPredefinedDictionary(aruco::PREDEFINED_DICTIONARY_NAME(dictionaryId));
+        aruco::getPredefinedDictionary(aruco::PREDEFINED_DICTIONARY_NAME(0));
 
     Mat camMatrix, distCoeffs;
     if(estimatePose) {
@@ -273,6 +243,20 @@ int main(int argc, char *argv[]) {
     double totalTime = 0;
     int totalIterations = 0;
 
+    Mat im_src = cv::imread(inputMask, CV_LOAD_IMAGE_UNCHANGED);
+    if (im_src.rows == 0) {
+    	cerr << "Invalid input mask" << endl;
+        return 0;
+    }
+    // Read source image.
+    // Four corners of the book in source image
+    vector<Point2f> pts_src;
+    pts_src.push_back(Point2f(0, im_src.rows-1));
+    pts_src.push_back(Point2f(0, 0));
+    pts_src.push_back(Point2f(im_src.cols-1, im_src.rows-1));
+    pts_src.push_back(Point2f(im_src.cols-1, 0));
+
+
     while(inputVideo.grab()) {
         Mat image, imageCopy;
         inputVideo.retrieve(image);
@@ -295,28 +279,26 @@ int main(int argc, char *argv[]) {
             aruco::drawDetectedMarkers(imageCopy, corners, ids);
 
         }
-        if (ids.size() >= 3)
+        if (ids.size() >= 4)
         {
-        	Point2f p500 = GetCenterId(0, ids, corners);
-        	Point2f p501 = GetCenterId(1, ids, corners);
-        	Point2f p502 = GetCenterId(2, ids, corners);
-        	Point2f pCenter = Point2f((p501+p502)/2);
 
-			int angleValue = angle(imageCopy, p500, p502);
-			angleValue = (180 - angleValue)%360;
-			//printf("Angle %d\n", angleValue);
+            // Store markers
+            vector<Point2f> pts_dst;
+            pts_dst.push_back(GetCenterId(0, ids, corners));
+            pts_dst.push_back(GetCenterId(1, ids, corners));
+            pts_dst.push_back(GetCenterId(2, ids, corners));
+            pts_dst.push_back(GetCenterId(3, ids, corners));
 
-			//cv::circle(image, pCenter, 4, cv::Scalar(255,0,0,0), 2);
+            // Calculate Homography
+            Mat h = findHomography(pts_src, pts_dst);
 
-			cv::Mat imageMaskRotated;
-			cv::Point2f pointRotated;
-			double offset;
-			loadAndRotateMask(p500, p501, p502, angleValue, imageMaskRotated, offset);
-			cv::Point2f offsetNew = cv::Point2f(pCenter.x-offset, pCenter.y-offset);
-
-		    cv::Mat dst;
- 		    overlayImage(imageCopy, imageMaskRotated, dst, offsetNew);
- 		    imshow("out", dst); // OpenCV call
+            // Output image
+            Mat im_out;
+            // Warp source image to destination based on homography
+            warpPerspective(im_src, im_out, h, imageCopy.size());
+            Mat out;
+            overlayImage(imageCopy, im_out, out, Point(0,0));
+            imshow("out", out); // OpenCV call
 
         }
         else
@@ -329,4 +311,5 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
 

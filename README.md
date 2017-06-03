@@ -11,7 +11,10 @@ git clone https://github.com/psnl/pinball-mask.git
 *make
 
 ## run
-./pinball-mask -d=0
+### Default mask
+./pinball-mask
+### Custom mask
+./pinball-mask -i=<mask.png>
 
 ## markers
 Print the pinball-mask.png in the markers directory on a sheet of paper to test the program.

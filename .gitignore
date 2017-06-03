@@ -1,4 +1,9 @@
 build/
+.settings/
+.autotools
+.cproject
+.project
+
 
 # Prerequisites
 *.d
