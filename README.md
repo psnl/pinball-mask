@@ -11,9 +11,9 @@ git clone https://github.com/psnl/pinball-mask.git
 * make
 
 ## run
-### Default mask
+###### Default mask
 ./pinball-mask
-### Custom mask
+###### Custom mask
 ./pinball-mask -i=<mask.png>
 
 ## markers
