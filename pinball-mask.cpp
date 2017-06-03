@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
     }
     else
     {
-    	inputMask = "./phact.png1";
+    	inputMask = "../phact.png";
     }
 
 
