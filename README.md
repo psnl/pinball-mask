@@ -4,11 +4,11 @@
 git clone https://github.com/psnl/pinball-mask.git
 
 ## build
-*cd pinball-mask
-*mkdir build
-*cd build
-*cmake ..
-*make
+* cd pinball-mask
+* mkdir build
+* cd build
+* cmake ..
+* make
 
 ## run
 ### Default mask
