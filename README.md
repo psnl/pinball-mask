@@ -1,4 +1,5 @@
 # pinball-mask
+Create a mask layer with opencv to be used with an automated pinball machine
 
 ## get
 git clone https://github.com/psnl/pinball-mask.git
