@@ -185,13 +185,13 @@ int main(int argc, char *argv[]) {
     bool estimatePose = parser.has("c");
     float markerLength = parser.get<float>("l");
 
-    String inputMask;
+    String inputMaskFile;
     if(parser.has("i")) {
-    	inputMask = parser.get<String>("i");
+    	inputMaskFile = parser.get<String>("i");
     }
     else
     {
-    	inputMask = "../phact.png";
+    	inputMaskFile = "../phact.png";
     }
 
 
@@ -240,21 +240,32 @@ int main(int argc, char *argv[]) {
         waitTime = 10;
     }
 
+    inputVideo.set(CV_CAP_PROP_FRAME_WIDTH, 1024);
+    inputVideo.set(CV_CAP_PROP_FRAME_HEIGHT, 768);
+
     double totalTime = 0;
     int totalIterations = 0;
 
-    Mat im_src = cv::imread(inputMask, CV_LOAD_IMAGE_UNCHANGED);
+    Mat im_src = cv::imread(inputMaskFile, CV_LOAD_IMAGE_UNCHANGED);
     if (im_src.rows == 0) {
     	cerr << "Invalid input mask" << endl;
         return 0;
     }
+
+
+    Mat splitImputImage[4];
+    split(im_src,splitImputImage);//split source
+    Mat inputMask;
+    // Get alpha channel
+    bitwise_not(splitImputImage[3],inputMask);
+
     // Read source image.
     // Four corners of the book in source image
     vector<Point2f> pts_src;
-    pts_src.push_back(Point2f(0, im_src.rows-1));
+    pts_src.push_back(Point2f(0, inputMask.rows-1));
     pts_src.push_back(Point2f(0, 0));
-    pts_src.push_back(Point2f(im_src.cols-1, im_src.rows-1));
-    pts_src.push_back(Point2f(im_src.cols-1, 0));
+    pts_src.push_back(Point2f(inputMask.cols-1, inputMask.rows-1));
+    pts_src.push_back(Point2f(inputMask.cols-1, 0));
 
 
     while(inputVideo.grab()) {
@@ -273,12 +284,9 @@ int main(int argc, char *argv[]) {
         // draw results
         image.copyTo(imageCopy);
 
-
-
-        if(ids.size() > 0) {
-            aruco::drawDetectedMarkers(imageCopy, corners, ids);
-
-        }
+        //if(ids.size() > 0) {
+        //    aruco::drawDetectedMarkers(imageCopy, corners, ids);
+        //}
         if (ids.size() >= 4)
         {
 
@@ -292,6 +300,7 @@ int main(int argc, char *argv[]) {
             // Calculate Homography
             Mat h = findHomography(pts_src, pts_dst);
 
+            // Demo (Start)
             // Output image
             Mat im_out;
             // Warp source image to destination based on homography
@@ -299,7 +308,16 @@ int main(int argc, char *argv[]) {
             Mat out;
             overlayImage(imageCopy, im_out, out, Point(0,0));
             imshow("out", out); // OpenCV call
+            // Demo (Stop)
 
+            // Mask (Start)
+            Mat maskOut;
+            warpPerspective(inputMask, maskOut, h, imageCopy.size());
+
+            Mat maskApplied;
+            imageCopy.copyTo(maskApplied, maskOut);
+            imshow("maskApplied", maskApplied);
+            // Mask (Stop)
         }
         else
         {
